@@ -3,14 +3,16 @@ from flask_socketio import SocketIO, emit, disconnect
 import jinja2
 import uuid
 
-
+# Initialize Flask app and SocketIO
 app = Flask(__name__, template_folder='templates')
 app.secret_key = 'development'  # Change this to a random, secret value
 socketio = SocketIO(app)
 
+# Store connected users and mapping from SocketIO session ID to username
 connected_users = set()
 sid_to_username = {}
 
+# Login route: Handles user login and redirects based on username
 @app.route('/', methods=['GET', 'POST'])
 def do_login():
     if request.method == 'POST':
@@ -27,6 +29,7 @@ def do_login():
             return redirect(url_for('display_userpanel'))
     return render_template('index.html')
 
+# User panel route: Displays user panel for logged-in users
 @app.route('/loggedin')
 def display_userpanel():
     username = session.get('username')
@@ -34,6 +37,7 @@ def display_userpanel():
         return redirect(url_for('do_login'))
     return render_template('loggedin.html', username=username) # users=list(connected_users)
 
+# Admin panel route: Displays admin panel
 @app.route('/sessionmaster')
 def display_adminpanel():
     return render_template('sessionmaster.html', username='Sessionmaster')
@@ -48,7 +52,7 @@ def display_adminsession():
 def display_usersession(username):
     return render_template('usersession.html', username=username)
 
-
+# Add headers to responses to prevent caching
 @app.after_request
 def add_header(r):
     """
@@ -61,10 +65,12 @@ def add_header(r):
     r.headers['Cache-Control'] = 'public, max-age=0'
     return r
 
+# SocketIO event: Start sessions and redirect all clients to admin session
 @socketio.on('start_sessions')
 def start_sessions_windows():
     emit('redirect_event', url_for('display_adminsession'), broadcast=True)
 
+# SocketIO event: Handle new client connection
 @socketio.on('connect')
 def handle_connect(auth):
     user_id = auth.get('user_id')
@@ -74,6 +80,7 @@ def handle_connect(auth):
         connected_users.add((user_id, username))
         socketio.emit('update_users', [u[1] for u in connected_users])
 
+# SocketIO event: Handle client disconnect
 @socketio.on('disconnect')
 def handle_disconnect():
     user_info = sid_to_username.pop(request.sid, None)
@@ -81,5 +88,6 @@ def handle_disconnect():
         connected_users.remove(user_info)
         socketio.emit('update_users', [u[1] for u in connected_users])
 
+# Run the Flask app with SocketIO
 if __name__ == '__main__':
     socketio.run(app)
